@@ -6,75 +6,118 @@
 #include "exceptions.hpp"
 
 namespace sjtu {
-/**
- * @brief a container like std::priority_queue which is a heap internal.
- * **Exception Safety**: The `Compare` operation might throw exceptions for certain data.
- * In such cases, any ongoing operation should be terminated, and the priority queue should be restored to its original state before the operation began.
- */
+
+template<typename T>
+struct Node {
+    T value;
+    Node *left;
+    Node *right;
+    Node(const T &v) : value(v), left(nullptr), right(nullptr) {}
+};
+
 template<typename T, class Compare = std::less<T>>
 class priority_queue {
+private:
+    Node<T> *root;
+    Compare cmp;
+    size_t current_size;
+
+    Node<T>* merge(Node<T>* a, Node<T>* b) {
+        if (!a) return b;
+        if (!b) return a;
+        if (cmp(a->value, b->value)) {
+            std::swap(a, b);
+        }
+        a->right = merge(a->right, b);
+        std::swap(a->left, a->right);
+        return a;
+    }
+
+    Node<T>* copy(const Node<T>* node) {
+        if (!node) return nullptr;
+        Node<T>* newNode = new Node<T>(node->value);
+        newNode->left = copy(node->left);
+        newNode->right = copy(node->right);
+        return newNode;
+    }
+
+    void clear(Node<T>* node) {
+        if (node) {
+            clear(node->left);
+            clear(node->right);
+            delete node;
+        }
+    }
+
 public:
-	/**
-	 * @brief default constructor
-	 */
-	priority_queue() {}
+    priority_queue() : root(nullptr), current_size(0) {}
 
-	/**
-	 * @brief copy constructor
-	 * @param other the priority_queue to be copied
-	 */
-	priority_queue(const priority_queue &other) {}
+    priority_queue(const priority_queue &other) : root(nullptr), current_size(other.current_size) {
+        root = copy(other.root);
+    }
 
-	/**
-	 * @brief deconstructor
-	 */
-	~priority_queue() {}
+    ~priority_queue() {
+        clear(root);
+    }
 
-	/**
-	 * @brief Assignment operator
-	 * @param other the priority_queue to be assigned from
-	 * @return a reference to this priority_queue after assignment
-	 */
-	priority_queue &operator=(const priority_queue &other) {}
+    priority_queue &operator=(const priority_queue &other) {
+        if (this != &other) {
+            clear(root);
+            root = copy(other.root);
+            current_size = other.current_size;
+        }
+        return *this;
+    }
 
-	/**
-	 * @brief get the top element of the priority queue.
-	 * @return a reference of the top element.
-	 * @throws container_is_empty if empty() returns true
-	 */
-	const T & top() const {}
+    const T & top() const {
+        if (empty()) {
+            throw container_is_empty();
+        }
+        return root->value;
+    }
 
-	/**
-	 * @brief push new element to the priority queue.
-	 * @param e the element to be pushed
-	 */
-	void push(const T &e) {}
+    void push(const T &e) {
+        Node<T>* newNode = new Node<T>(e);
+        try {
+            root = merge(root, newNode);
+            ++current_size;
+        } catch (...) {
+            delete newNode;
+            throw;
+        }
+    }
 
-	/**
-	 * @brief delete the top element from the priority queue.
-	 * @throws container_is_empty if empty() returns true
-	 */
-	void pop() {}
+    void pop() {
+        if (empty()) {
+            throw container_is_empty();
+        }
+        Node<T>* oldRoot = root;
+        Node<T>* left = oldRoot->left;
+        Node<T>* right = oldRoot->right;
+        try {
+            root = merge(left, right);
+        } catch (...) {
+            root = oldRoot;
+            throw;
+        }
+        delete oldRoot;
+        --current_size;
+    }
 
-	/**
-	 * @brief return the number of elements in the priority queue.
-	 * @return the number of elements.
-	 */
-	size_t size() const {}
+    size_t size() const {
+        return current_size;
+    }
 
-	/**
-	 * @brief check if the container is empty.
-	 * @return true if it is empty, false otherwise.
-	 */
-	bool empty() const {}
+    bool empty() const {
+        return current_size == 0;
+    }
 
-	/**
-	 * @brief merge another priority_queue into this one.
-	 * The other priority_queue will be cleared after merging.
-	 * The complexity is at most O(logn).
-	 * @param other the priority_queue to be merged.
-	 */
-	void merge(priority_queue &other) {}
+    void merge(priority_queue &other) {
+        root = merge(root, other.root);
+        current_size += other.current_size;
+        other.root = nullptr;
+        other.current_size = 0;
+    }
 };
 
 }
